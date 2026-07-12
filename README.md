@@ -1,5 +1,4 @@
-# ML Coverage - Coverage-Directed Test Selection Framework
-
+# Blindspot - ML Coverage - Coverage-Directed Test Selection Framework
 A machine learning-based framework for intelligent test selection in hardware verification, implementing Coverage-Directed Test Selection (CDS) methodology using Random Forest classifiers to optimize coverage efficiency.
 
 ## Overview
