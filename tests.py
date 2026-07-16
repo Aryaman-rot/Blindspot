@@ -50,31 +50,29 @@ class TestSimulator:
         hit_points = []
         
         # Check GROUP1 coverage points (Memory interface)
+        # Change 6: was `for ds in ...: if ds == data_size:` — simplified to direct membership check.
         if input_interface == 0:
-            for ds in self.dut.data_size_values:
-                if ds == data_size:
-                    for out_act in self.dut.output_active_values:
-                        if out_act == output_active:
-                            # Check if data_bin falls within defined ranges
-                            for bin_range in [(0, 100), (101, 500), (501, 1000)]:
-                                if bin_range[0] <= data_bin <= bin_range[1]:
-                                    point_id = f"g1_iface0_ds{ds}_out{out_act}_bin{bin_range[0]}-{bin_range[1]}"
-                                    hit_points.append(point_id)
+            if data_size in self.dut.data_size_values and output_active in self.dut.output_active_values:
+                # Check if data_bin falls within defined ranges
+                for bin_range in [(0, 100), (101, 500), (501, 1000)]:
+                    if bin_range[0] <= data_bin <= bin_range[1]:
+                        point_id = f"g1_iface0_ds{data_size}_out{output_active}_bin{bin_range[0]}-{bin_range[1]}"
+                        hit_points.append(point_id)
         
         # Check GROUP2 coverage points (Radar interface)
+        # Change 6: same simplification applied.
         if input_interface == 1:
-            for ds in self.dut.data_size_values:
-                if ds == data_size:
-                    for out_act in self.dut.output_active_values:
-                        if out_act == output_active:
-                            # Check if data_bin falls within defined ranges
-                            for bin_range in [(0, 200), (201, 1000), (1001, 5000)]:
-                                if bin_range[0] <= data_bin <= bin_range[1]:
-                                    point_id = f"g2_iface1_ds{ds}_out{out_act}_bin{bin_range[0]}-{bin_range[1]}"
-                                    hit_points.append(point_id)
+            if data_size in self.dut.data_size_values and output_active in self.dut.output_active_values:
+                # Check if data_bin falls within defined ranges
+                for bin_range in [(0, 200), (201, 1000), (1001, 5000)]:
+                    if bin_range[0] <= data_bin <= bin_range[1]:
+                        point_id = f"g2_iface1_ds{data_size}_out{output_active}_bin{bin_range[0]}-{bin_range[1]}"
+                        hit_points.append(point_id)
         
         # Check GROUP3 coverage points (Special cases)
-        if (input_interface == 1 and data_size == 4) or (input_interface == 0 and data_size == 3):
+        # Only iface=1, data_size=4 is registered in dut.coverage_points;
+        # the former (iface=0, data_size=3) branch was dead — removed in Change 5.
+        if input_interface == 1 and data_size == 4:
             if 5001 <= data_bin <= 10000:
                 point_id = f"g3_iface{input_interface}_ds{data_size}_special_bin5001-10000"
                 hit_points.append(point_id)
@@ -96,16 +94,4 @@ class TestSimulator:
         for test in tests:
             hit_points = self.simulate_test(test)
             results.append(hit_points)
-        return results
-    
-    def get_test_features(self):
-        """Convert test database to feature matrix for ML"""
-        features = []
-        for test in self.test_database:
-            features.append([
-                test['input_interface'],
-                test['data_size'],
-                test['output_active'],
-                test['data_bin']
-            ])
-        return np.array(features)
+        return results
