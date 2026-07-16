@@ -1,16 +1,7 @@
 import argparse
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report
-from collections import defaultdict, Counter
 import random
-import time
 
-from dut import SimpleDUT
-from cds import CoverageDirectedTestSelection
-from tests import TestSimulator
 from exp import Experiment
 
 def main():
@@ -86,14 +77,14 @@ def main():
     experiment.run_random_selection(total_cds_tests)
 
     print(experiment.dut_cds.coverage_points)
-    
+
     # Plot and analyze results
-    plt = experiment.plot_results()
+    fig = experiment.plot_results()
     # --- Change 2: Save plot; optionally open GUI window ---
-    plt.savefig(args.output, dpi=150, bbox_inches="tight")
+    fig.savefig(args.output, dpi=150, bbox_inches="tight")
     print(f"[Plot] Saved to {args.output}")
     if args.show:
-        plt.show()
+        fig.show()
     
     # Print detailed results
     print("\n--- Experiment Results ---")
