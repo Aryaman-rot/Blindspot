@@ -56,17 +56,48 @@ def main():
         metavar="PCT",
         help="Coverage %% levels to report savings for (default: 90 95 98).",
     )
+    # --- Tier 2: ML Improvements args ---
+    parser.add_argument(
+        "--classifier",
+        type=str,
+        choices=["rf", "gb"],
+        default="rf",
+        help="Classifier to use for CDS: 'rf' (Random Forest) or 'gb' (Gradient Boosting) (default: rf).",
+    )
+    parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="Run classifier comparison on initial training data and exit.",
+    )
+    parser.add_argument(
+        "--show-importances",
+        action="store_true",
+        help="Show feature importances on every retrain iteration.",
+    )
     args = parser.parse_args()
 
     # --- Change 1: Reproducibility seed ---
+    seed_val = args.seed if args.seed is not None else 42
     if args.seed is not None:
         random.seed(args.seed)
         np.random.seed(args.seed)
         print(f"[Seed] Global random seed set to {args.seed}")
 
     # Create experiment
-    experiment = Experiment()
+    experiment = Experiment(
+        clf_type=args.classifier,
+        seed=seed_val,
+        show_importances=args.show_importances
+    )
     
+    # Check if we should only run the comparison evaluation
+    if args.compare:
+        print("\n=== Running Classifier Comparison Evaluation ===")
+        # Run initial test simulation to gather training data
+        experiment.run_initial_phase(args.initial_tests)
+        experiment.cds.compare_classifiers(seed=seed_val)
+        return
+
     # Run CDS method
     experiment.run_cds_iteration(
         args.initial_tests, args.iterations, args.tests_per_iter

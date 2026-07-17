@@ -10,7 +10,7 @@ class Experiment:
     """
     Framework to run CDS experiments and compare with random selection
     """
-    def __init__(self, dut_class=SimpleDUT):
+    def __init__(self, dut_class=SimpleDUT, clf_type="rf", seed=42, show_importances=False):
         # Create DUT for CDS and random testing
         self.dut_cds = dut_class()
         self.dut_random = dut_class()
@@ -20,7 +20,13 @@ class Experiment:
         self.simulator_random = TestSimulator(self.dut_random)
 
         # Create CDS controller
-        self.cds = CoverageDirectedTestSelection(self.dut_cds, self.simulator_cds)
+        self.cds = CoverageDirectedTestSelection(
+            self.dut_cds, 
+            self.simulator_cds,
+            clf_type=clf_type,
+            seed=seed,
+            show_importances=show_importances
+        )
 
         # Generate a large pool of tests for selection
         self.test_pool = self.generate_test_pool(10000)
@@ -64,6 +70,18 @@ class Experiment:
         print(f"  Coverage after Random Selection: {coverage:.2f}%")
         return coverage
 
+    def run_initial_phase(self, num_initial_tests):
+        """Simulate the initial random tests for CDS"""
+        if self.tests_simulated_cds > 0:
+            return
+        initial_tests = random.sample(self.test_pool, num_initial_tests)
+        self.simulator_cds.test_database.extend(initial_tests)
+        self.simulator_cds.simulate_tests(initial_tests)
+        self.tests_simulated_cds += num_initial_tests
+        coverage = self.dut_cds.get_coverage_percentage()
+        self.coverage_progress_cds.append((self.tests_simulated_cds, coverage))
+        print(f"  Coverage after initial random testing: {coverage:.2f}%")
+
     def run_cds_iteration(self, num_initial_tests, num_iterations, tests_per_iteration):
         """
         Run CDS verification process
@@ -73,16 +91,7 @@ class Experiment:
         print(f"\nRunning CDS with {num_initial_tests} initial tests + {num_iterations} CDS iterations...")
 
         # Phase 1: Initial random testing
-        initial_tests = random.sample(self.test_pool, num_initial_tests)
-        self.simulator_cds.test_database.extend(initial_tests)
-        self.simulator_cds.simulate_tests(initial_tests)
-
-        # Update metrics
-        self.tests_simulated_cds += num_initial_tests
-        coverage = self.dut_cds.get_coverage_percentage()
-        self.coverage_progress_cds.append((self.tests_simulated_cds, coverage))
-
-        print(f"  Coverage after initial random testing: {coverage:.2f}%")
+        self.run_initial_phase(num_initial_tests)
 
         # Phase 2: CDS iterations
         for iteration in range(num_iterations):
@@ -113,6 +122,9 @@ class Experiment:
             if coverage >= 99.99:
                 print("  Reached (approximately) 100% coverage. Stopping CDS iterations early.")
                 break
+
+        # Unconditionally print feature importances at the end of the iterations
+        self.cds.print_all_feature_importances()
 
         return coverage
 
