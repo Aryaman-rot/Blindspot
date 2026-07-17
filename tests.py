@@ -29,59 +29,82 @@ class TestSimulator:
 
         return tests
 
-    def simulate_test(self, test):
+    def _resolve_coverage_points(self, test, encoded_out, overflow_flag):
         """
-        Simulate a single test and determine which coverage points it hits
-        This is a simplified model of how the test might exercise certain functionality
-        """
-        # Get test parameters
-        input_interface = test['input_interface']
-        data_size = test['data_size']
-        output_active = test['output_active']
-        data_bin = test['data_bin']
+        Map Verilog outputs to coverage point ID strings.
 
-        # Track which coverage points are hit by this test
+        Verilog is the ORACLE for which interface path fired and whether
+        data_bin > 5000. Python constructs the exact point-ID strings using
+        the original test parameters -- identical format to the old if/else.
+
+        encoded_out   : 1 = MEM path (GROUP1), 2 = Radar path (GROUP2)
+        overflow_flag : 1 means data_bin > 5000, gates GROUP3
+        """
+        data_size       = test['data_size']       # original Python value (1-4)
+        output_active   = test['output_active']
+        data_bin        = test['data_bin']
+        input_interface = test['input_interface']
+
         hit_points = []
 
-        # Check GROUP1 coverage points (Memory interface)
-        if input_interface == 0:
-            if data_size in self.dut.data_size_values and output_active in self.dut.output_active_values:
-                # Check if data_bin falls within defined ranges
-                for bin_range in [(0, 100), (101, 500), (501, 1000)]:
-                    if bin_range[0] <= data_bin <= bin_range[1]:
-                        point_id = f"g1_iface0_ds{data_size}_out{output_active}_bin{bin_range[0]}-{bin_range[1]}"
-                        hit_points.append(point_id)
+        # GROUP1: Verilog confirmed MEM path
+        if encoded_out == 1:
+            for bin_range in [(0, 100), (101, 500), (501, 1000)]:
+                if bin_range[0] <= data_bin <= bin_range[1]:
+                    point_id = (
+                        f"g1_iface0_ds{data_size}_out{output_active}"
+                        f"_bin{bin_range[0]}-{bin_range[1]}"
+                    )
+                    hit_points.append(point_id)
 
-        # Check GROUP2 coverage points (Radar interface)
-        if input_interface == 1:
-            if data_size in self.dut.data_size_values and output_active in self.dut.output_active_values:
-                # Check if data_bin falls within defined ranges
-                for bin_range in [(0, 200), (201, 1000), (1001, 5000)]:
-                    if bin_range[0] <= data_bin <= bin_range[1]:
-                        point_id = f"g2_iface1_ds{data_size}_out{output_active}_bin{bin_range[0]}-{bin_range[1]}"
-                        hit_points.append(point_id)
+        # GROUP2: Verilog confirmed Radar path
+        if encoded_out == 2:
+            for bin_range in [(0, 200), (201, 1000), (1001, 5000)]:
+                if bin_range[0] <= data_bin <= bin_range[1]:
+                    point_id = (
+                        f"g2_iface1_ds{data_size}_out{output_active}"
+                        f"_bin{bin_range[0]}-{bin_range[1]}"
+                    )
+                    hit_points.append(point_id)
 
-        # Check GROUP3 coverage points (Special cases)
-        if input_interface == 1 and data_size == 4:
-            if 5001 <= data_bin <= 10000:
-                point_id = f"g3_iface{input_interface}_ds{data_size}_special_bin5001-10000"
-                hit_points.append(point_id)
-
-        # Update DUT coverage model
-        for point in hit_points:
-            if point in self.dut.coverage_points:
-                self.dut.coverage_points[point] = True
-
-        # Store test coverage result in database
-        test_id = len(self.coverage_database)
-        self.coverage_database[test_id] = hit_points
+        # GROUP3: Verilog confirmed overflow AND specific iface/data_size combo
+        if overflow_flag == 1 and input_interface == 1 and data_size == 4:
+            point_id = (
+                f"g3_iface{input_interface}_ds{data_size}_special_bin5001-10000"
+            )
+            hit_points.append(point_id)
 
         return hit_points
 
     def simulate_tests(self, tests):
-        """Simulate a batch of tests"""
+        """
+        Simulate a batch of tests using the real Verilog DUT.
+        One iverilog+vvp subprocess call for the whole batch (efficient).
+        Updates dut.coverage_points and self.coverage_database in place.
+        Returns list-of-lists of hit point IDs (same contract as before).
+        """
+        sim_outputs = self.dut.run_verilog_simulation(tests)
+
         results = []
-        for test in tests:
-            hit_points = self.simulate_test(test)
+        for test, (encoded_out, overflow_flag) in zip(tests, sim_outputs):
+            hit_points = self._resolve_coverage_points(test, encoded_out, overflow_flag)
+
+            # Update DUT coverage model
+            for point in hit_points:
+                if point in self.dut.coverage_points:
+                    self.dut.coverage_points[point] = True
+
+            # Store in coverage database (key mirrors test_database index)
+            test_id = len(self.coverage_database)
+            self.coverage_database[test_id] = hit_points
+
             results.append(hit_points)
+
         return results
+
+    def simulate_test(self, test):
+        """
+        Simulate a single test.
+        Delegates to simulate_tests() to reuse the Verilog path.
+        """
+        return self.simulate_tests([test])[0]

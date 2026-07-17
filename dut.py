@@ -1,3 +1,6 @@
+import csv
+import os
+import subprocess
 
 class SimpleDUT:
     """
@@ -74,3 +77,95 @@ class SimpleDUT:
         """Reset all coverage points to not covered"""
         for point in self.coverage_points:
             self.coverage_points[point] = False
+
+    def run_verilog_simulation(self, tests):
+        """
+        Write stimulus, compile (once) + run the Verilog testbench via Icarus
+        Verilog, and return a list of (encoded_out: int, overflow_flag: int)
+        tuples -- one per test, in the same order as `tests`.
+
+        Compilation is skipped when sim.vvp already exists AND is newer than
+        both source .v files -- so iverilog is called at most once per run.
+        data_size is written as (value - 1) to fit Verilog's [1:0] port (0-3).
+        """
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        rtl_dir   = os.path.join(project_root, "rtl")
+        stim_path = os.path.join(rtl_dir, "stimulus.csv")
+        out_path  = os.path.join(rtl_dir, "sim_output.csv")
+        vvp_path  = os.path.join(rtl_dir, "sim.vvp")
+        tb_path   = os.path.join(rtl_dir, "signal_proc_tb.v")
+        mod_path  = os.path.join(rtl_dir, "signal_proc.v")
+
+        # Resolve iverilog and vvp executables (check PATH, fallback to common install paths)
+        iverilog_cmd = "iverilog"
+        vvp_cmd = "vvp"
+
+        # Check default Windows installation path if not found in PATH
+        import shutil
+        if not shutil.which(iverilog_cmd):
+            fallback_iverilog = r"C:\iverilog\bin\iverilog.exe"
+            if os.path.exists(fallback_iverilog):
+                iverilog_cmd = fallback_iverilog
+
+        if not shutil.which(vvp_cmd):
+            fallback_vvp = r"C:\iverilog\bin\vvp.exe"
+            if os.path.exists(fallback_vvp):
+                vvp_cmd = fallback_vvp
+
+        # -- Step 1: Write stimulus (no header; data_size offset by -1) -------
+        with open(stim_path, "w", newline="") as f:
+            for t in tests:
+                f.write(
+                    f"{t['input_interface']},"
+                    f"{t['data_size'] - 1},"   # Python 1-4 -> Verilog [1:0] 0-3
+                    f"{t['output_active']},"
+                    f"{t['data_bin']}\n"
+                )
+
+        # -- Step 2: Compile only when sim.vvp is absent or stale -------------
+        sources = [tb_path, mod_path]
+        needs_compile = (
+            not os.path.exists(vvp_path)
+            or os.path.getmtime(vvp_path) < max(os.path.getmtime(s) for s in sources)
+        )
+        if needs_compile:
+            print("[Verilog] Compiling signal_proc (first run or source changed)...")
+            # Use relative paths with forward slashes to avoid backslash issues on Windows
+            rel_tb = os.path.relpath(tb_path, project_root).replace(os.sep, "/")
+            rel_mod = os.path.relpath(mod_path, project_root).replace(os.sep, "/")
+            rel_vvp = os.path.relpath(vvp_path, project_root).replace(os.sep, "/")
+            
+            result = subprocess.run(
+                [iverilog_cmd, "-s", "signal_proc_tb", "-o", rel_vvp, rel_tb, rel_mod],
+                capture_output=True, text=True,
+                cwd=project_root
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"iverilog compile failed:\n{result.stderr}")
+
+        # -- Step 3: Simulate (always -- stimulus changes every iteration) ----
+        rel_vvp = os.path.relpath(vvp_path, project_root).replace(os.sep, "/")
+        result = subprocess.run(
+            [vvp_cmd, rel_vvp],
+            capture_output=True, text=True,
+            cwd=project_root,  # so $fopen("rtl/...") in testbench resolves
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"vvp simulation failed:\n{result.stderr}")
+
+        # -- Step 4: Read outputs ---------------------------------------------
+        sim_results = []
+        with open(out_path, newline="") as f:
+            reader = csv.DictReader(f)   # header: encoded_out,overflow_flag
+            for row in reader:
+                sim_results.append(
+                    (int(row["encoded_out"]), int(row["overflow_flag"]))
+                )
+
+        if len(sim_results) != len(tests):
+            raise RuntimeError(
+                f"Simulation output row count ({len(sim_results)}) "
+                f"!= stimulus count ({len(tests)})"
+            )
+
+        return sim_results

@@ -1,3 +1,10 @@
 __pycache__/
 *.pyc
 .DS_Store
+.vscode/
+md files
+
+# Verilog runtime-generated files (do not commit)
+rtl/stimulus.csv
+rtl/sim_output.csv
+rtl/sim.vvp
