@@ -9,6 +9,7 @@ class SimpleDUT:
     """
     def __init__(self):
         # Define possible values for each configuration field
+        self.data_mode_values = [0, 1]  # 0: Bypass, 1: Process
         self.input_interface_values = [0, 1]  # 0: MEM, 1: Radar
         self.data_size_values = [1, 2, 3, 4]
         self.output_active_values = [0, 1]
@@ -19,17 +20,13 @@ class SimpleDUT:
 
     def initialize_coverage_model(self):
         """Initialize the coverage model with coverage points and groups"""
-        # Dictionary to track which coverage points have been hit
         self.coverage_points = {}
-
-        # Define coverage groups (simplified version)
         self.coverage_groups = {}
 
         # Group 1: Input Interface = 0 (Memory) related functionality
         group1_points = []
         for ds in self.data_size_values:
             for out_act in self.output_active_values:
-                # Define ranges for data_bin that would exercise these points
                 for bin_range in [(0, 100), (101, 500), (501, 1000)]:
                     point_id = f"g1_iface0_ds{ds}_out{out_act}_bin{bin_range[0]}-{bin_range[1]}"
                     self.coverage_points[point_id] = False
@@ -40,7 +37,6 @@ class SimpleDUT:
         group2_points = []
         for ds in self.data_size_values:
             for out_act in self.output_active_values:
-                # Define ranges for data_bin that would exercise these points
                 for bin_range in [(0, 200), (201, 1000), (1001, 5000)]:
                     point_id = f"g2_iface1_ds{ds}_out{out_act}_bin{bin_range[0]}-{bin_range[1]}"
                     self.coverage_points[point_id] = False
@@ -57,6 +53,16 @@ class SimpleDUT:
                         self.coverage_points[point_id] = False
                         group3_points.append(point_id)
         self.coverage_groups["GROUP3"] = group3_points
+
+        # Group 4: Bypass Mode Functionality (data_mode == 0)
+        group4_points = []
+        for iface in self.input_interface_values:
+            for out_act in self.output_active_values:
+                for bin_range in [(0, 5000), (5001, 10000)]:
+                    point_id = f"g4_bypass_iface{iface}_out{out_act}_bin{bin_range[0]}-{bin_range[1]}"
+                    self.coverage_points[point_id] = False
+                    group4_points.append(point_id)
+        self.coverage_groups["GROUP4"] = group4_points
 
         # Metadata about coverage model
         self.total_coverage_points = len(self.coverage_points)
@@ -83,10 +89,6 @@ class SimpleDUT:
         Write stimulus, compile (once) + run the Verilog testbench via Icarus
         Verilog, and return a list of (encoded_out: int, overflow_flag: int)
         tuples -- one per test, in the same order as `tests`.
-
-        Compilation is skipped when sim.vvp already exists AND is newer than
-        both source .v files -- so iverilog is called at most once per run.
-        data_size is written as (value - 1) to fit Verilog's [1:0] port (0-3).
         """
         project_root = os.path.dirname(os.path.abspath(__file__))
         rtl_dir   = os.path.join(project_root, "rtl")
@@ -96,11 +98,9 @@ class SimpleDUT:
         tb_path   = os.path.join(rtl_dir, "signal_proc_tb.v")
         mod_path  = os.path.join(rtl_dir, "signal_proc.v")
 
-        # Resolve iverilog and vvp executables (check PATH, fallback to common install paths)
         iverilog_cmd = "iverilog"
         vvp_cmd = "vvp"
 
-        # Check default Windows installation path if not found in PATH
         import shutil
         if not shutil.which(iverilog_cmd):
             fallback_iverilog = r"C:\iverilog\bin\iverilog.exe"
@@ -116,6 +116,7 @@ class SimpleDUT:
         with open(stim_path, "w", newline="") as f:
             for t in tests:
                 f.write(
+                    f"{t['data_mode']},"
                     f"{t['input_interface']},"
                     f"{t['data_size'] - 1},"   # Python 1-4 -> Verilog [1:0] 0-3
                     f"{t['output_active']},"
@@ -130,7 +131,6 @@ class SimpleDUT:
         )
         if needs_compile:
             print("[Verilog] Compiling signal_proc (first run or source changed)...")
-            # Use relative paths with forward slashes to avoid backslash issues on Windows
             rel_tb = os.path.relpath(tb_path, project_root).replace(os.sep, "/")
             rel_mod = os.path.relpath(mod_path, project_root).replace(os.sep, "/")
             rel_vvp = os.path.relpath(vvp_path, project_root).replace(os.sep, "/")

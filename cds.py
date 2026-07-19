@@ -17,7 +17,7 @@ class CoverageDirectedTestSelection:
         self.clf_type = clf_type
         self.seed = seed
         self.show_importances = show_importances
-        self.feature_names = ["input_interface", "data_size", "output_active", "data_bin"]
+        self.feature_names = ["data_mode", "input_interface", "data_size", "output_active", "data_bin"]
 
     def get_uncovered_groups(self, threshold=100.0):
         """Get list of coverage groups that have not reached the threshold coverage"""
@@ -59,6 +59,7 @@ class CoverageDirectedTestSelection:
         for test_id in used_test_ids:
             test = self.simulator.test_database[test_id]
             X.append([
+                test['data_mode'],
                 test['input_interface'],
                 test['data_size'],
                 test['output_active'],
@@ -128,6 +129,7 @@ class CoverageDirectedTestSelection:
             return random.sample(range(len(candidate_tests)), min(max_tests, len(candidate_tests)))
 
         X_candidates = np.array([[
+            test['data_mode'],
             test['input_interface'],
             test['data_size'],
             test['output_active'],

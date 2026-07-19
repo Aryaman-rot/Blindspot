@@ -43,6 +43,7 @@ class Experiment:
         for _ in range(num_tests):
             # Create test with random values for each field
             test = {
+                'data_mode': random.choice(self.dut_cds.data_mode_values),
                 'input_interface': random.choice(self.dut_cds.input_interface_values),
                 'data_size': random.choice(self.dut_cds.data_size_values),
                 'output_active': random.choice(self.dut_cds.output_active_values),
