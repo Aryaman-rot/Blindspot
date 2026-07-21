@@ -13,7 +13,7 @@ def main():
         metavar="INT",
         help="Fix the global random seed (random + numpy) for a fully reproducible run.",
     )
-    # --- Change 2: Non-blocking plot args ---
+    # Plot output options
     parser.add_argument(
         "--output",
         type=str,
@@ -26,7 +26,7 @@ def main():
         action="store_true",
         help="Open the plot in a GUI window after saving (blocks until closed).",
     )
-    # --- Change 3: Configurable experiment parameters ---
+    # Experiment size parameters
     parser.add_argument(
         "--initial-tests",
         type=int,
@@ -56,7 +56,7 @@ def main():
         metavar="PCT",
         help="Coverage %% levels to report savings for (default: 90 95 98).",
     )
-    # --- Tier 2: ML Improvements args ---
+    # Classifier options
     parser.add_argument(
         "--classifier",
         type=str,
@@ -76,7 +76,7 @@ def main():
     )
     args = parser.parse_args()
 
-    # --- Change 1: Reproducibility seed ---
+    # Reproducibility
     seed_val = args.seed if args.seed is not None else 42
     if args.seed is not None:
         random.seed(args.seed)
@@ -107,11 +107,19 @@ def main():
     total_cds_tests = experiment.tests_simulated_cds
     experiment.run_random_selection(total_cds_tests)
 
-    print(experiment.dut_cds.coverage_points)
+    # Print per-group coverage summary
+    print("\n--- Coverage Point Detail ---")
+    dut = experiment.dut_cds
+    for group, points in dut.coverage_groups.items():
+        hit = sum(1 for p in points if dut.coverage_points.get(p, False))
+        total = len(points)
+        pct = (hit / total * 100) if total else 0
+        bar = ("#" * hit) + ("." * (total - hit))
+        print(f"  {group}: {hit:2}/{total:2} [{bar}] {pct:5.1f}%")
 
     # Plot and analyze results
     fig = experiment.plot_results()
-    # --- Change 2: Save plot; optionally open GUI window ---
+    # Save plot; optionally open GUI window
     fig.savefig(args.output, dpi=150, bbox_inches="tight")
     print(f"[Plot] Saved to {args.output}")
     if args.show:
@@ -125,7 +133,7 @@ def main():
     print(f"Final coverage with Random: {experiment.coverage_progress_random[-1][1]:.2f}%")
     
     # Calculate tests needed to reach specific coverage levels
-    coverage_levels = args.coverage_milestones  # --- Change 3: was hardcoded [90, 95, 98]
+    coverage_levels = args.coverage_milestones
     
     print("\nTests required to reach coverage levels:")
     print("Coverage | CDS Tests | Random Tests | Savings")
