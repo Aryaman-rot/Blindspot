@@ -146,7 +146,7 @@ python main.py --seed 42 --compare --initial-tests 50
 # Show feature importances at every iteration
 python main.py --seed 42 --show-importances
 
-# Save coverage plot
+# Open an interactive plot window after saving
 python main.py --seed 42 --show
 ```
 
@@ -154,13 +154,17 @@ python main.py --seed 42 --show
 
 ## 📊 Sample Results
 
-CDS achieves **significant test savings** over pure random selection:
+CDS achieves **significant test savings** over pure random selection (`--seed 42`, default 100 iterations):
 
 | Coverage Target | CDS Tests | Random Tests | Savings |
 |---|---|---|---|
 | 90% | ~1,500 | ~5,500 | **~73%** |
 | 95% | ~2,400 | ~5,500 | **~56%** |
 | 98% | ~3,700 | ~5,500 | **~33%** |
+
+> **Why savings decrease at higher coverage targets**: The easy coverage points (common input combinations) get hit quickly by both methods. The hard tail — particularly the 3 GROUP2 points that are only reachable via the Bypass Mode path (`data_mode=0`) due to the Process Mode gating rule — requires the ML to discover a non-obvious cross-field constraint. This is intentional: the DUT was deliberately made harder in Tier 3 to be more representative of real hardware, where coverage closure on corner cases is the actual challenge.
+
+> **Why savings are lower than a simpler DUT would show**: Earlier versions of this project (before the `data_mode` field and gating rule were added) showed higher savings (~79–84% at 90%). The drop to ~73% is an honest signal that the problem got harder — not a regression in the ML approach. A DUT that is trivially easy to cover would show artificially inflated savings numbers.
 
 ---
 
