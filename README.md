@@ -176,13 +176,22 @@ CDS achieves **significant test savings** over pure random selection (`--seed 42
 
 ---
 
+## ⚠️ Known Limitations
+
+1. **Data Scarcity on Rare Coverage Points**: `GROUP3` consists of a single point (`g3_iface1_ds4_special_bin5001-10000`) with a ~3.125% random hit probability. Even with `class_weight='balanced'`, ML classifiers struggle to generalize when positive training examples are extremely sparse (<5 samples in early iterations).
+2. **Simplified RTL Scope**: `signal_proc.v` is a simplified 5-input priority encoder designed to prove the CDS co-simulation concept cleanly. Production RTL designs feature significantly larger state spaces, complex sequential protocols, and deep pipeline registers.
+3. **Diminishing Returns near 100% Coverage**: The performance gap between CDS and random selection narrows as coverage approaches 100%. Common coverage points are hit quickly by both methods, while the final hard-to-reach corner cases require exploring rare paths that are inherently difficult for statistical models to predict.
+4. **Cross-Field Gating Dependency**: The Process Mode gating rule (`input_interface=1`, `data_size=4`, `output_active=0` -> `encoded_out=0`) makes 3 `GROUP2` points exclusively reachable via Bypass Mode (`data_mode=0`). Full coverage closure requires the test candidate pool to maintain adequate representation across both operational modes.
+
+---
+
 ## 📋 Requirements
 
 ```
-numpy
-pandas
-matplotlib
-scikit-learn
+numpy>=1.26.0
+pandas>=2.0.0
+matplotlib>=3.8.0
+scikit-learn>=1.4.0
 ```
 
 ---
