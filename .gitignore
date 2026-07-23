@@ -8,3 +8,5 @@ md files
 rtl/stimulus.csv
 rtl/sim_output.csv
 rtl/sim.vvp
+# Virtual environment
+.venv/
